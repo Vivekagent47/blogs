@@ -1,21 +1,60 @@
-# Next.js template
+# Personal Publishing Website
 
-This is a Next.js template with shadcn/ui.
+A content-first personal site built with Next.js App Router, TypeScript, Tailwind CSS, and MDX.
 
-## Adding components
+## Stack
 
-To add components to your app, run the following command:
+- Next.js (App Router)
+- TypeScript
+- Tailwind CSS + existing shadcn theme tokens
+- MDX content files in `content/`
+- RSS feed at `/rss.xml`
+- Sitemap at `/sitemap.xml`
+
+## Run locally
 
 ```bash
-npx shadcn@latest add button
+bun install
+bun run dev
 ```
 
-This will place the ui components in the `components` directory.
+## Content model
 
-## Using components
+All published writing is file-based MDX:
 
-To use the components in your app, import them as follows:
+- `content/blog/*.mdx`
+- `content/notes/*.mdx`
+- `content/rants/*.mdx`
 
-```tsx
-import { Button } from "@/components/ui/button";
+Required frontmatter fields:
+
+```yaml
+title: "Post title"
+description: "Short summary for cards and SEO"
+date: "YYYY-MM-DD"
+updatedAt: "YYYY-MM-DD" # optional
+tags:
+  - tag-one
+  - tag-two
+draft: false
+coverImage: "/images/example.jpg" # optional
+```
+
+## Publishing workflow
+
+1. Add a new `.mdx` file in the correct `content/` folder.
+2. Use a unique file name; it becomes the URL slug.
+3. Set `draft: false` to publish.
+
+Draft behavior:
+
+- Development: drafts are visible.
+- Production: drafts are excluded from lists, routes, RSS, and sitemap.
+
+## Quality checks
+
+```bash
+bun run typecheck
+bun run lint
+bun run build
 ```

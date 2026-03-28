@@ -1,15 +1,33 @@
-import { Geist, Geist_Mono } from "next/font/google"
+import type { Metadata } from "next"
+import { Fraunces, JetBrains_Mono, Manrope, Source_Serif_4 } from "next/font/google"
 
 import "./globals.css"
+import { SiteShell } from "@/components/shared/site-shell"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils";
+import { buildRootMetadata } from "@/lib/seo"
+import { cn } from "@/lib/utils"
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'})
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-ui",
+})
 
-const fontMono = Geist_Mono({
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+})
+
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-reading",
+})
+
+const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
 })
+
+export const metadata: Metadata = buildRootMetadata()
 
 export default function RootLayout({
   children,
@@ -20,10 +38,24 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", geist.variable)}
+      className={cn(
+        "scroll-smooth antialiased",
+        manrope.variable,
+        fraunces.variable,
+        sourceSerif.variable,
+        jetBrainsMono.variable,
+        "font-sans"
+      )}
     >
-      <body>
-        <ThemeProvider>{children}</ThemeProvider>
+      <body className="min-h-dvh bg-background text-foreground">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <SiteShell>{children}</SiteShell>
+        </ThemeProvider>
       </body>
     </html>
   )
