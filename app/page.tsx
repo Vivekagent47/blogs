@@ -8,14 +8,14 @@ import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
   title: "Home",
-  description: "Blogs, notes, rants, and personal updates by Vivek Chauhan.",
+  description: "Blog posts and personal updates by Vivek Chauhan.",
   path: "/",
 })
 
 export default function HomePage() {
-  const featuredBlog = getCollection("blog")[0] ?? null
-  const notes = getCollection("notes").slice(0, 3)
-  const rants = getCollection("rants").slice(0, 3)
+  const blogEntries = getCollection("blog")
+  const featuredBlog = blogEntries[0] ?? null
+  const latestBlogs = blogEntries.slice(1, 7)
   const stats = getCollectionStats()
   const tags = getAllTags().slice(0, 12)
 
@@ -28,7 +28,7 @@ export default function HomePage() {
           </p>
           <div className="space-y-4">
             <h1 className="max-w-3xl text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
-              Long-form blogs, quick notes, and occasional rants.
+              Long-form blogs and personal updates.
             </h1>
             <p className="max-w-2xl text-base leading-8 text-muted-foreground">
               A personal publishing website focused on clarity, good reading rhythm, and simple
@@ -42,12 +42,6 @@ export default function HomePage() {
               className="inline-flex min-h-11 items-center rounded-full border border-primary/30 bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
             >
               Read the blog
-            </Link>
-            <Link
-              href={collectionRoutes.notes}
-              className="inline-flex min-h-11 items-center rounded-full border border-secondary-foreground/15 bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition hover:bg-secondary/85"
-            >
-              Browse notes
             </Link>
           </div>
         </div>
@@ -92,53 +86,27 @@ export default function HomePage() {
         </section>
       )}
 
-      <section className="grid gap-8 lg:grid-cols-2">
-        <div className="space-y-6">
-          <SectionHeading
-            eyebrow="Field notes"
-            title="Latest notes"
-            description="Short learnings and findings in lightweight format."
-            action={
-              <Link href={collectionRoutes.notes} className="text-sm font-medium text-primary">
-                View all notes
-              </Link>
-            }
-          />
-          <div className="space-y-4">
-            {notes.length > 0 ? (
-              notes.map((entry) => (
-                <PostCard key={entry.slug} entry={entry} href={`${collectionRoutes.notes}/${entry.slug}`} />
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No notes yet. Add files in <code>content/notes</code>.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <SectionHeading
-            eyebrow="Opinion"
-            title="Latest rants"
-            description="Personal takes with a sharper edge."
-            action={
-              <Link href={collectionRoutes.rants} className="text-sm font-medium text-primary">
-                View all rants
-              </Link>
-            }
-          />
-          <div className="space-y-4">
-            {rants.length > 0 ? (
-              rants.map((entry) => (
-                <PostCard key={entry.slug} entry={entry} href={`${collectionRoutes.rants}/${entry.slug}`} />
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No rants yet. Add files in <code>content/rants</code>.
-              </p>
-            )}
-          </div>
+      <section className="space-y-6">
+        <SectionHeading
+          eyebrow="Recent"
+          title="Latest blog posts"
+          description="Fresh writing from the main blog collection."
+          action={
+            <Link href={collectionRoutes.blog} className="text-sm font-medium text-primary">
+              View all posts
+            </Link>
+          }
+        />
+        <div className="grid gap-4 md:grid-cols-2">
+          {latestBlogs.length > 0 ? (
+            latestBlogs.map((entry) => (
+              <PostCard key={entry.slug} entry={entry} href={`${collectionRoutes.blog}/${entry.slug}`} />
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No extra posts yet. Add files in <code>content/blog</code>.
+            </p>
+          )}
         </div>
       </section>
 
@@ -147,7 +115,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Topics"
             title="Tag stream"
-            description="Recurring ideas across blog posts, notes, and rants."
+            description="Recurring ideas across blog posts."
           />
           {tags.length > 0 ? (
             <div className="mt-5 flex flex-wrap gap-2">
@@ -174,8 +142,7 @@ export default function HomePage() {
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
               { href: collectionRoutes.blog, label: "Blog", detail: "Long-form writing." },
-              { href: collectionRoutes.notes, label: "Notes", detail: "Short-form updates." },
-              { href: collectionRoutes.rants, label: "Rants", detail: "Opinionated posts." },
+              { href: "/rss.xml", label: "RSS", detail: "Subscribe to new posts." },
             ].map((item) => (
               <Link
                 key={item.href}

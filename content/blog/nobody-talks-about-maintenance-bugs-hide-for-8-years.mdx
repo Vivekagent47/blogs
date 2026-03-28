@@ -1,0 +1,273 @@
+---
+title: "Nobody Talks About Maintenance. That's How Bugs Hide for 8 Years."
+description: "A developer's honest, unfiltered experience working inside an 8-year-old codebase nobody dares touch — and the lessons every developer needs to hear before they write another line of code."
+date: "2025-01-01"
+draft: false
+tags:
+  [
+    "Software Engineering",
+    "Maintenance",
+    "Clean Code",
+    "Documentation",
+    "Technical Debt",
+    "Real Talk",
+  ]
+keywords:
+  [
+    "code maintenance",
+    "legacy code best practices",
+    "technical debt",
+    "software documentation",
+    "clean code",
+    "maintainable code for developers",
+  ]
+readTime: "8 min read"
+---
+
+# Nobody Talks About Maintenance. That's How Bugs Hide for 8 Years.
+
+_A completely honest account from inside a codebase that's been running in production since before some of my current colleagues finished high school._
+
+---
+
+Okay so here's something that happened to me recently that I genuinely cannot stop thinking about.
+
+I was doing a routine data validation pass — just checking that the numbers coming out of an API matched what we were showing on an analytics dashboard. Normal stuff. The kind of thing you do before a presentation so you don't embarrass yourself in front of stakeholders.
+
+And I found a bug.
+
+Not a dramatic bug. Not a crash, not a missing record, not an obvious wrong number. A `0.005%` error in a calculated value. So small you'd never notice it by looking at the dashboard. So small that no alert ever fired, no user ever complained, no test ever caught it.
+
+The codebase is 8 years old. Every developer who originally built it has left the company. Which means this bug has potentially been sitting there, silently, since before some of my current teammates had their first developer job. Every report generated from this system. Every dashboard. Every business decision made using this data. All of it, slightly wrong. Not catastrophically wrong. Just quietly, invisibly, consistently wrong.
+
+Nobody noticed for 8 years.
+
+That's maintenance. Or more accurately — that's what happens when nobody does it.
+
+---
+
+## Let me tell you about this codebase
+
+I want to paint you a picture, because I think abstractions like "legacy code" and "technical debt" don't really convey what it actually feels like to work inside something like this.
+
+The codebase is 8 years old. The team that built it is completely gone — different jobs, different companies, some just unreachable. There is no documentation. Zero. Not a README that explains what the system does at a high level, not inline comments explaining the non-obvious parts, nothing.
+
+Variable names like `tmpVal2`. Functions called `processData` that are 400 lines long and do approximately seven different things. A file I opened on my first week that had a comment at the top that just said `# TODO: clean this up` — dated 2019.
+
+And then there's the one that broke me a little: a calculation in the core logic that adds `0.5` to a value. No comment. No explanation. Just:
+
+```python
+result = calculate_value(input) + 0.5
+```
+
+I spent five hours on that line. Five hours reading through the entire file, tracing how `result` was used downstream, figuring out what would actually happen if I removed it. Turned out it was a rounding correction for how a vendor system — a vendor that no longer exists — processed decimal values. Someone added it in 2017 to fix a specific edge case and either forgot to comment it or assumed it was obvious.
+
+It was not obvious.
+
+Five hours. For half a number.
+
+---
+
+## The bug that had been wrong for 8 years
+
+Back to that `0.005%` error I found during validation.
+
+After I found it, I dug into when it was introduced. Based on the git history — which, credit where it's due, at least existed — it had been there since one of the earliest commits. Meaning it shipped with the original version of the product.
+
+The fix itself took about 20 minutes once I understood the algorithm. A small logic error in how an intermediate value was being rounded before being passed into the final calculation. The kind of mistake anyone could make, and normally would catch in a code review or a test.
+
+Except there were no tests covering this calculation. And apparently no code review caught it. And since the error was small enough to be invisible to anyone just glancing at the numbers, it just... stayed there. Doing its quiet, slightly-wrong thing for the better part of a decade.
+
+After I fixed it, the numbers barely moved. Users didn't notice. No one filed a ticket saying "wow the dashboard looks different now." Which is almost more unsettling — it means the wrong numbers had just become the expected numbers.
+
+This is what unmaintained code actually costs. Not always a dramatic outage. Sometimes just years of slightly wrong data that nobody ever thought to question.
+
+---
+
+## Why this keeps happening (and it's not laziness)
+
+I want to be clear: I don't think the developers who built this were bad at their jobs. I think they were probably smart people, working under real deadlines, trying to ship something that worked.
+
+And that's exactly the problem.
+
+Our industry has a culture built entirely around shipping. Every blog post, every conference talk, every viral tweet is about building faster, shipping more, using AI to 10x your output. Nobody is posting about "I spent this sprint auditing our dependencies and adding comments to the non-obvious parts of our codebase." That doesn't get likes. That doesn't get retweets.
+
+So it doesn't get done.
+
+And then five years later someone like me is spending their afternoon tracing a magic number through 400 lines of undocumented code, wondering why no one thought to leave a note.
+
+Here's the mindset shift that I think actually matters: **every line of code you write today is a maintenance burden for someone in the future.** That someone might be a new hire. It might be a colleague. It might be you, six months from now, with zero memory of why you wrote it that way.
+
+Write code like you know that. Because you do.
+
+---
+
+## Specific things I've learned that actually help
+
+Okay, enough context. Here's the practical stuff — things I've learned from being inside this codebase that I genuinely wish someone had told me earlier.
+
+### 1. Comment the _why_, never just the _what_
+
+The `+0.5` didn't need a comment explaining that it adds 0.5. Anyone can read that. It needed a comment explaining _why_ it adds 0.5, what breaks if you remove it, and where that logic came from.
+
+```python
+# Bad — describes what the code does (already obvious)
+# Add 0.5 to result
+result = calculate_value(input) + 0.5
+
+# Good — describes why, what it handles, and where it came from
+# Vendor API (Acme Corp, deprecated 2021) truncates decimals during ingestion.
+# Without this correction, boundary values round down instead of up,
+# causing ~0.3% undercount in daily totals. Verified against ticket #4821.
+result = calculate_value(input) + 0.5
+```
+
+That comment takes 30 seconds to write. It would have saved me five hours. Not a close trade-off.
+
+### 2. Name things like you're explaining them out loud
+
+If you had to read a variable name in a code review meeting, out loud, to your team — would it make sense? `tmpVal2` would not. `monthly_revenue_before_tax` would.
+
+```python
+# What is x? What is flag? What does this return?
+x = get_data(u, flag, tmp)
+
+# This tells you everything you need to know
+monthly_report = fetch_user_report(
+    user_id=user_id,
+    include_archived=True,
+    decimal_precision=2
+)
+```
+
+You are not saving time by shortening names. You are borrowing time from the future and paying interest on it.
+
+### 3. Keep functions small and focused on one thing
+
+The 400-line `processData` function I mentioned is not a function. It's a codebase inside a function. When something goes wrong inside it — and things do go wrong — debugging it is a nightmare because you don't even know which of its seven responsibilities is the culprit.
+
+A good rule of thumb: if you can't describe what a function does in one sentence without using the word "and," it's doing too much.
+
+```python
+# This function does too much
+def process_user_data(user_id):
+    # fetch user
+    # validate input
+    # calculate metrics
+    # format for API
+    # log the result
+    # send notification
+    # return response
+    ...
+
+# Split it — each function does one thing, clearly named
+def fetch_validated_user(user_id): ...
+def calculate_user_metrics(user): ...
+def format_metrics_for_api(metrics): ...
+def notify_and_log(user_id, result): ...
+```
+
+When something breaks in the second version, you know exactly where to look.
+
+### 4. Test the non-obvious behavior explicitly
+
+The 0.005% bug existed because the calculation had no tests. Not because tests couldn't have caught it — they absolutely would have — but because nobody wrote them.
+
+Tests aren't just for catching bugs today. They're documentation for future developers. A well-named test tells you what the code is supposed to do even when the code itself doesn't make it obvious.
+
+```python
+# This test would have caught the bug AND explained the intent
+def test_revenue_calculation_rounds_up_at_boundary():
+    """
+    Ensure revenue values at decimal boundaries round UP, not down.
+    Vendor system truncates — without correction this produces 0.005% undercount.
+    """
+    result = calculate_revenue(boundary_input)
+    assert result == expected_rounded_up_value
+```
+
+That test is also a comment. It tells you exactly what the business rule is and why the code is written the way it is. Write more of these.
+
+### 5. Audit your dependencies like they're a security risk — because they are
+
+Every unmaintained dependency in the codebase I'm working on is a potential vulnerability. Libraries that stopped receiving patches in 2020 aren't getting CVE fixes. Old versions of packages have known exploits that are publicly documented and actively targeted.
+
+A quarterly dependency audit takes a couple of hours. Here's what that looks like in practice:
+
+```bash
+# Python — check for outdated packages
+pip list --outdated
+
+# Check for known security vulnerabilities
+pip install pip-audit
+pip-audit
+
+# Node / JavaScript
+npm outdated
+npm audit
+
+# See what's actually outdated and by how much
+npx npm-check-updates
+```
+
+Run these. Actually look at the results. The 8-year-old codebase I'm in had dependencies flagged with critical CVEs that had been sitting unpatched for years. Nobody ran the audit. Nobody knew.
+
+### 6. Write a README like the next developer has zero context
+
+Because they might. I did.
+
+A good README doesn't have to be long. It just needs to answer: what does this system do, how do I run it locally, what are the non-obvious things I need to know, and where do I go if something breaks?
+
+```markdown
+## What this does
+
+Calculates monthly user revenue metrics and serves them via REST API.
+Core calculation logic is in `src/calculators/revenue.py`.
+
+## Non-obvious things
+
+- The +0.5 correction in `calculate_value()` is intentional — see comment in file
+- `LEGACY_MODE=true` env var enables compatibility with old vendor API format (deprecated)
+- The `processData` function in `utils.py` is being refactored — don't add to it
+
+## If something breaks
+
+- Check logs in `/var/log/app/revenue.log`
+- Most calculation bugs will show up in the `validate_outputs` test suite
+- Slack #data-pipeline for urgent issues
+```
+
+That's it. That's a README. It would have changed my first two weeks on this project entirely.
+
+---
+
+## The bigger picture
+
+Here's what I keep coming back to: the developers who built this codebase were not negligent people. They were probably just focused on shipping — the same thing every developer is pressured to focus on right now, even more so in an era where AI can generate code faster than ever.
+
+But generating code fast and generating _maintainable_ code are two very different things. And as AI tools make it easier to ship more, faster, the maintenance problem is only going to get worse — not better — unless we consciously decide to care about it.
+
+Writing code that works is the minimum bar. Writing code that the next developer can read, understand, modify safely, and hand off to someone else without fear — that's the actual job. That's what separates someone who can code from someone who engineers software.
+
+The bug that hid for 8 years didn't hide because the original developers were bad at math. It hid because nobody built in the systems — the tests, the comments, the documentation, the review culture — that would have caught it.
+
+Don't be that story for someone else.
+
+---
+
+## Quick reference — the maintenance checklist
+
+Before you ship anything, ask yourself:
+
+- **Comments:** Have I explained _why_ the non-obvious parts work the way they do?
+- **Naming:** Can someone understand what this does without reading the implementation?
+- **Function size:** Does each function do exactly one thing?
+- **Tests:** Are the tricky edge cases covered by tests that also explain the intent?
+- **Dependencies:** Are all packages maintained and free of known CVEs?
+- **README:** Could someone new to this project get up and running without asking anyone?
+
+If the answer to any of those is no — that's your maintenance work. It's not optional. It's part of the job.
+
+---
+
+_Currently living inside an 8-year-old codebase with no docs, a few hundred unexplained decisions, at least one bug that went unnoticed for the better part of a decade, and a `+0.5` that cost me an entire afternoon. Highly recommend never putting anyone else through this._

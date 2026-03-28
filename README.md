@@ -23,8 +23,6 @@ bun run dev
 All published writing is file-based MDX:
 
 - `content/blog/*.mdx`
-- `content/notes/*.mdx`
-- `content/rants/*.mdx`
 
 Required frontmatter fields:
 
@@ -42,7 +40,7 @@ coverImage: "/images/example.jpg" # optional
 
 ## Publishing workflow
 
-1. Add a new `.mdx` file in the correct `content/` folder.
+1. Add a new `.mdx` file in `content/blog`.
 2. Use a unique file name; it becomes the URL slug.
 3. Set `draft: false` to publish.
 

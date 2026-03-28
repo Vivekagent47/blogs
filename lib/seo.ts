@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 export const siteConfig = {
   name: "Vivek Chauhan",
   title: "Vivek Chauhan",
-  description: "Personal writing on software, systems, notes, and occasional rants.",
+  description: "Personal writing on software, systems, and thoughtful blog posts.",
   author: "Vivek Chauhan",
   locale: "en_US",
   ogImage: "/og-default.svg",

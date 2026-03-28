@@ -9,8 +9,6 @@ import { ThemeSwitch } from "./theme-switch"
 const primaryNav = [
   { href: "/", label: "Home" },
   { href: collectionRoutes.blog, label: "Blog" },
-  { href: collectionRoutes.notes, label: "Notes" },
-  { href: collectionRoutes.rants, label: "Rants" },
 ] as const
 
 export function SiteHeader() {

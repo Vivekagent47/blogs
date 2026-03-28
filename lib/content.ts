@@ -7,7 +7,7 @@ import matter from "gray-matter"
 import readingTime from "reading-time"
 import { cache } from "react"
 
-export const collections = ["blog", "notes", "rants"] as const
+export const collections = ["blog"] as const
 
 export type CollectionName = (typeof collections)[number]
 
@@ -46,20 +46,14 @@ export type PublishedEntry = {
 
 export const collectionLabels: Record<CollectionName, string> = {
   blog: "Blog",
-  notes: "Notes",
-  rants: "Rants",
 }
 
 export const collectionDescriptions: Record<CollectionName, string> = {
   blog: "Long-form writing about systems, software, and decisions that age well.",
-  notes: "Small findings, quick learnings, and lightweight observations.",
-  rants: "Opinionated takes with a tighter edge and personal voice.",
 }
 
 export const collectionRoutes: Record<CollectionName, string> = {
   blog: "/blog",
-  notes: "/notes",
-  rants: "/rants",
 }
 
 const contentRoot = path.join(process.cwd(), "content")

@@ -6,8 +6,6 @@ import { absoluteUrl } from "@/lib/seo"
 const staticRoutes = [
   { path: "/", priority: 1, changeFrequency: "weekly" as const },
   { path: "/blog", priority: 0.8, changeFrequency: "weekly" as const },
-  { path: "/notes", priority: 0.8, changeFrequency: "weekly" as const },
-  { path: "/rants", priority: 0.7, changeFrequency: "weekly" as const },
 ]
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -17,7 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: absoluteUrl(entry.url),
     lastModified: new Date(`${entry.updatedAt ?? entry.date}T00:00:00.000Z`),
     changeFrequency: "monthly",
-    priority: entry.type === "blog" ? 0.8 : entry.type === "notes" ? 0.7 : 0.6,
+    priority: 0.8,
   }))
 
   return [

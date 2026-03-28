@@ -7,8 +7,6 @@ import { SocialLinks } from "./social-links"
 
 const footerNav = [
   { href: collectionRoutes.blog, label: "Blog" },
-  { href: collectionRoutes.notes, label: "Notes" },
-  { href: collectionRoutes.rants, label: "Rants" },
 ] as const
 
 export function SiteFooter() {
@@ -19,7 +17,7 @@ export function SiteFooter() {
           <div className="max-w-xl space-y-3">
             <p className="text-sm font-medium text-primary">Blogs</p>
             <p className="text-sm leading-7 text-muted-foreground">
-              A compact publishing surface for essays, notes, and opinions that do not need to be
+              A compact publishing surface for essays and technical writing that do not need to be
               larger than they are.
             </p>
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
