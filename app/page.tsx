@@ -3,7 +3,12 @@ import Link from "next/link"
 
 import { PostCard } from "@/components/post/post-card"
 import { SectionHeading } from "@/components/shared/section-heading"
-import { collectionRoutes, getAllTags, getCollection, getCollectionStats } from "@/lib/content"
+import {
+  collectionRoutes,
+  getAllTags,
+  getCollection,
+  getCollectionStats,
+} from "@/lib/content"
 import { buildPageMetadata } from "@/lib/seo"
 
 export const metadata: Metadata = buildPageMetadata({
@@ -21,9 +26,9 @@ export default function HomePage() {
 
   return (
     <div className="space-y-16">
-      <section className="grid gap-8 rounded-[2rem] border border-primary/15 bg-gradient-to-br from-secondary/65 via-card to-card p-6 sm:p-8 lg:grid-cols-[1.35fr_0.9fr] lg:items-start">
+      <section className="grid gap-8 rounded-[2rem] border border-primary/15 bg-linear-to-br from-secondary/65 via-card to-card p-6 sm:p-8 lg:grid-cols-[1.35fr_0.9fr] lg:items-start">
         <div className="space-y-6">
-          <p className="text-xs font-medium uppercase tracking-[0.32em] text-primary">
+          <p className="text-xs font-medium tracking-[0.32em] text-primary uppercase">
             Vivek Chauhan
           </p>
           <div className="space-y-4">
@@ -31,8 +36,8 @@ export default function HomePage() {
               Long-form blogs and personal updates.
             </h1>
             <p className="max-w-2xl text-base leading-8 text-muted-foreground">
-              A personal publishing website focused on clarity, good reading rhythm, and simple
-              architecture that stays maintainable over time.
+              A personal publishing website focused on clarity, good reading
+              rhythm, and simple architecture that stays maintainable over time.
             </p>
           </div>
 
@@ -52,14 +57,19 @@ export default function HomePage() {
               key={stat.collection}
               className="rounded-3xl border border-primary/15 bg-background/90 p-5 shadow-sm"
             >
-              <p className="text-xs font-medium uppercase tracking-[0.28em] text-primary">
+              <p className="text-xs font-medium tracking-[0.28em] text-primary uppercase">
                 {stat.label}
               </p>
-              <p className="mt-3 text-4xl font-semibold tracking-tight">{stat.count}</p>
-              <p className="mt-2 text-sm leading-7 text-muted-foreground">{stat.description}</p>
+              <p className="mt-3 text-4xl font-semibold tracking-tight">
+                {stat.count}
+              </p>
+              <p className="mt-2 text-sm leading-7 text-muted-foreground">
+                {stat.description}
+              </p>
               {stat.latest ? (
                 <p className="mt-4 text-xs text-muted-foreground">
-                  Latest: <span className="text-foreground">{stat.latest.title}</span>
+                  Latest:{" "}
+                  <span className="text-foreground">{stat.latest.title}</span>
                 </p>
               ) : null}
             </article>
@@ -74,7 +84,10 @@ export default function HomePage() {
             title="Latest blog post"
             description="The newest long-form piece from the blog collection."
           />
-          <PostCard entry={featuredBlog} href={`${collectionRoutes.blog}/${featuredBlog.slug}`} />
+          <PostCard
+            entry={featuredBlog}
+            href={`${collectionRoutes.blog}/${featuredBlog.slug}`}
+          />
         </section>
       ) : (
         <section className="rounded-3xl border border-primary/15 bg-secondary/60 p-6">
@@ -92,7 +105,10 @@ export default function HomePage() {
           title="Latest blog posts"
           description="Fresh writing from the main blog collection."
           action={
-            <Link href={collectionRoutes.blog} className="text-sm font-medium text-primary">
+            <Link
+              href={collectionRoutes.blog}
+              className="text-sm font-medium text-primary"
+            >
               View all posts
             </Link>
           }
@@ -100,7 +116,11 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-2">
           {latestBlogs.length > 0 ? (
             latestBlogs.map((entry) => (
-              <PostCard key={entry.slug} entry={entry} href={`${collectionRoutes.blog}/${entry.slug}`} />
+              <PostCard
+                key={entry.slug}
+                entry={entry}
+                href={`${collectionRoutes.blog}/${entry.slug}`}
+              />
             ))
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -111,7 +131,7 @@ export default function HomePage() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-primary/15 bg-gradient-to-br from-secondary/60 via-card to-card p-6">
+        <div className="rounded-3xl border border-primary/15 bg-linear-to-br from-secondary/60 via-card to-card p-6">
           <SectionHeading
             eyebrow="Topics"
             title="Tag stream"
@@ -122,18 +142,20 @@ export default function HomePage() {
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center rounded-full border border-secondary-foreground/10 bg-secondary px-3 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-secondary-foreground"
+                  className="inline-flex items-center rounded-full border border-secondary-foreground/10 bg-secondary px-3 py-1.5 text-xs font-medium tracking-[0.2em] text-secondary-foreground uppercase"
                 >
                   {tag}
                 </span>
               ))}
             </div>
           ) : (
-            <p className="mt-5 text-sm text-muted-foreground">Tags will appear once you publish content.</p>
+            <p className="mt-5 text-sm text-muted-foreground">
+              Tags will appear once you publish content.
+            </p>
           )}
         </div>
 
-        <div className="rounded-3xl border border-primary/15 bg-gradient-to-br from-secondary/60 via-card to-card p-6">
+        <div className="rounded-3xl border border-primary/15 bg-linear-to-br from-secondary/60 via-card to-card p-6">
           <SectionHeading
             eyebrow="Quick links"
             title="Site sections"
@@ -141,8 +163,16 @@ export default function HomePage() {
           />
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
-              { href: collectionRoutes.blog, label: "Blog", detail: "Long-form writing." },
-              { href: "/rss.xml", label: "RSS", detail: "Subscribe to new posts." },
+              {
+                href: collectionRoutes.blog,
+                label: "Blog",
+                detail: "Long-form writing.",
+              },
+              {
+                href: "/rss.xml",
+                label: "RSS",
+                detail: "Subscribe to new posts.",
+              },
             ].map((item) => (
               <Link
                 key={item.href}
@@ -150,7 +180,9 @@ export default function HomePage() {
                 className="rounded-2xl border border-primary/15 bg-background/95 p-4 transition hover:border-primary/30 hover:bg-secondary/45"
               >
                 <p className="text-sm font-medium text-primary">{item.label}</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.detail}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {item.detail}
+                </p>
               </Link>
             ))}
           </div>
