@@ -1,0 +1,435 @@
+---
+title: "Why Your Code Keeps Breaking: The Real Meaning of SOLID Principles"
+description: "SOLID isn't abstract academic theory. It's five survival tools that stop your codebase from collapsing under its own weight — explained the way nobody explained them to you the first time."
+date: "2026-04-13"
+tags:
+  [
+    "Software Engineering",
+    "SOLID",
+    "Clean Code",
+    "OOP",
+    "Architecture",
+    "Best Practices",
+  ]
+keywords:
+  [
+    "SOLID principles explained",
+    "single responsibility principle",
+    "open closed principle",
+    "liskov substitution",
+    "interface segregation",
+    "dependency inversion",
+    "clean code for developers",
+  ]
+readTime: "9 min read"
+---
+
+# Why Your Code Keeps Breaking: The Real Meaning of SOLID Principles
+
+_Five principles. Thousands of tutorials. Most of them miss the point entirely. Let's fix that._
+
+---
+
+Okay so you've heard of SOLID. You've probably Googled it at some point, skimmed a definition, maybe nodded along to an explanation that made sense in the moment and then evaporated by the next morning.
+
+That's not your fault. Most SOLID tutorials teach you the acronym. Very few teach you _why it exists_ — the actual pain it was invented to solve. And without that context, the principles feel like abstract rules you're supposed to follow because senior developers say so.
+
+So before we go through each letter, let's install the right mental model. Because once you have it, SOLID stops being a checklist and starts being obvious.
+
+---
+
+## The Mental Model: The God Class
+
+You open a codebase and find this.
+
+One class. 2,000 lines. It handles user authentication, sends emails, logs errors, queries the database, and validates input — all in the same file.
+
+You need to change how emails are sent. You edit one method. Tests break in authentication. A logging format changes. The database queries slow down. Everything is connected to everything.
+
+This is a **God Class**. One of the most painful patterns in object-oriented code. Every change is a gamble. Every feature request is surgery. You're not writing code anymore — you're playing Jenga with a production system where every piece is load-bearing and nobody left a map.
+
+Over the decades, five design principles emerged to prevent exactly this. Collected and named by Robert Martin, with roots going back to Barbara Liskov and others. Five letters: **S O L I D**.
+
+Let's go through each one the right way — starting with why it exists, not just what it says.
+
+---
+
+## S — Single Responsibility Principle
+
+### What everyone thinks it means
+
+_"A class should only do one thing."_
+
+### What it actually means
+
+**A class should have only one reason to change.**
+
+This sounds similar but it's a completely different idea. If you take "only do one thing" literally, you'll end up splitting code so aggressively that you need 12 files just to send a single email. You've traded one nightmare for another.
+
+The real question to ask is: **who can force this class to change?**
+
+Think about our God Class. The marketing team wants a new email template — that's one reason to change. The security team wants stronger password hashing — that's another. The ops team wants structured logging — that's a third. Three different stakeholders, three different reasons to change, all hitting the same file.
+
+SRP says: split it. One module for authentication. One for notifications. One for logging. Each one answers to a single stakeholder.
+
+```javascript
+// ❌ Before — one class, three stakeholders, three reasons to break
+class UserManager {
+  hashPassword(password) { ... }      // security team owns this
+  sendWelcomeEmail(user) { ... }      // marketing team owns this
+  logUserActivity(action) { ... }     // ops team owns this
+  validateInput(data) { ... }
+  queryDatabase(userId) { ... }
+}
+
+// ✅ After — each class has one owner, one reason to change
+class AuthService {
+  hashPassword(password) { ... }
+  validateCredentials(user, password) { ... }
+}
+
+class NotificationService {
+  sendWelcomeEmail(user) { ... }
+  sendPasswordResetEmail(user) { ... }
+}
+
+class ActivityLogger {
+  logUserActivity(action) { ... }
+  logError(error) { ... }
+}
+```
+
+Now when marketing changes the email format, `AuthService` stays untouched. When security updates the hash algorithm, `NotificationService` doesn't care. Nobody is doing surgery anymore.
+
+**The warning:** don't take it too far. SRP is about reasons to change, not counting methods. A class with three methods that all change for the same reason is fine — leave them together. Premature decomposition is its own kind of mess.
+
+> _SRP doesn't mean your class should do one thing. It means your class should have one reason to change._
+
+---
+
+## O — Open/Closed Principle
+
+### What it means
+
+**Software should be open for extension, closed for modification.**
+
+When you need to add new behavior, you should do it by _adding_ code — not by _changing_ code that already works.
+
+Here's the scenario that makes this click immediately. You have a payment processor that handles credit cards and PayPal using a switch statement. Works fine. Then product says: add Crypto.
+
+So you open the switch, add a new case — and accidentally break the PayPal branch. A real bug shipped to production because you edited working code to add an unrelated feature.
+
+```javascript
+// ❌ Before — every new payment method means opening this and risking a break
+function processPayment(type, amount) {
+  if (type === "credit_card") {
+    // credit card logic
+  } else if (type === "paypal") {
+    // paypal logic
+  }
+  // adding crypto here means opening this function
+  // and risking breaking everything above it
+}
+```
+
+OCP says: define a payment interface with a single `process` method. Credit Card gets a class. PayPal gets a class. Crypto? New class, new file. The core routing logic stays completely untouched.
+
+```javascript
+// ✅ After — adding Crypto is a new file, not a change to existing code
+class CreditCardPayment {
+  process(amount) {
+    /* credit card logic */
+  }
+}
+
+class PayPalPayment {
+  process(amount) {
+    /* paypal logic */
+  }
+}
+
+class CryptoPayment {
+  process(amount) {
+    /* crypto — new file, nothing else touched */
+  }
+}
+
+function processPayment(paymentMethod, amount) {
+  paymentMethod.process(amount) // this line never changes
+}
+```
+
+Adding a payment method is now safe. You extend the system without modifying it. The PayPal code was never opened. Nothing that was working can break.
+
+**The pragmatic caveat:** OCP is for code that changes frequently. If you only have two payment methods and that switch hasn't been touched in two years — leave it alone. The worst code is code abstracted for a future that never comes.
+
+---
+
+## L — Liskov Substitution Principle
+
+### What it means
+
+**If you replace a parent class with a subclass, the program should still behave correctly.**
+
+Named after Barbara Liskov, and it's the one that trips up almost everyone — because it starts with something that seems geometrically obvious and then shows you why that logic completely falls apart in code.
+
+A square is a rectangle. Width equals height. So `Square` should extend `Rectangle`, right?
+
+```javascript
+// ❌ Seems logical. Watch what happens.
+class Rectangle {
+  setWidth(w) {
+    this.width = w
+  }
+  setHeight(h) {
+    this.height = h
+  }
+  getArea() {
+    return this.width * this.height
+  }
+}
+
+class Square extends Rectangle {
+  setWidth(w) {
+    this.width = w
+    this.height = w // sides must be equal
+  }
+  setHeight(h) {
+    this.width = h // same
+    this.height = h
+  }
+}
+
+// A function that uses Rectangle:
+function testArea(rect) {
+  rect.setWidth(5)
+  rect.setHeight(10)
+  console.log(rect.getArea()) // expects 50
+}
+
+testArea(new Rectangle()) // ✅ logs 50
+testArea(new Square()) // ❌ logs 100 — silent wrong answer
+```
+
+The code compiled. The types checked out. And the answer is dead wrong.
+
+Here's what happened: `setWidth(5)` was fine. Then `setHeight(10)` silently overrode the width to 10 as well. The caller had no idea. The contract of `Rectangle` — that width and height are independent — was broken by the subclass.
+
+That's a Liskov violation. When a subclass surprises the caller, you have the wrong abstraction.
+
+**The fix isn't better Square code.** A mutable square should not extend a mutable rectangle. Their invariants are fundamentally incompatible. The correct move is to step back and find the abstraction they actually share:
+
+```javascript
+// ✅ Both extend Shape — they share getArea(), nothing else
+class Shape {
+  getArea() {
+    throw new Error("implement getArea")
+  }
+}
+
+class Rectangle extends Shape {
+  constructor(width, height) {
+    super()
+    this.width = width
+    this.height = height
+  }
+  getArea() {
+    return this.width * this.height
+  }
+}
+
+class Square extends Shape {
+  constructor(side) {
+    super()
+    this.side = side
+  }
+  getArea() {
+    return this.side * this.side
+  }
+}
+```
+
+Simple rule: if your subclass needs to override a method in a way that changes what the caller can expect — you have the wrong abstraction. Step back and redesign.
+
+---
+
+## I — Interface Segregation Principle
+
+### What it means
+
+**Don't force classes to implement methods they don't need.**
+
+This one is about honesty in your code. An empty method — one that exists only to satisfy an interface but does nothing — is a lie baked into your architecture.
+
+Classic example. You have a `Worker` interface with two methods: `work()` and `eat()`. Human workers implement both perfectly. Then you add a Robot. Robots work. Robots don't eat. But the interface forces `RobotWorker` to implement `eat()` anyway.
+
+```javascript
+// ❌ Interface forces Robot to lie
+class Worker {
+  work() { ... }
+  eat()  { ... }   // robots don't eat
+}
+
+class HumanWorker extends Worker {
+  work() { /* works */ }
+  eat()  { /* eats lunch */ }
+}
+
+class RobotWorker extends Worker {
+  work() { /* works */ }
+  eat()  { /* ??? empty method. a lie. */ }
+}
+```
+
+`RobotWorker.eat()` is a broken promise. You're telling every caller "this thing can eat" when it absolutely cannot. That's an empty method — and empty methods are where bugs hide and trust erodes.
+
+ISP says: split it into smaller, focused interfaces. Clients depend only on what they actually use.
+
+```javascript
+// ✅ Segregated — each interface is an honest promise
+class Workable {
+  work() {
+    throw new Error("implement work")
+  }
+}
+
+class Feedable {
+  eat() {
+    throw new Error("implement eat")
+  }
+}
+
+// Human implements both — it can honestly fulfill both contracts
+class HumanWorker extends Workable {
+  work() {
+    /* works */
+  }
+  eat() {
+    /* eats */
+  }
+}
+
+// Robot implements only what it can actually do
+class RobotWorker extends Workable {
+  work() {
+    /* works */
+  }
+  // no eat() — and that's correct, it never promised it could
+}
+```
+
+No empty methods. No lies. Every interface is a contract the class can fully keep.
+
+---
+
+## D — Dependency Inversion Principle
+
+### What it means
+
+**High-level modules should not depend on low-level modules. Both should depend on abstractions.**
+
+This is the principle that ties everything else together — and the one most commonly confused with something else entirely. Let's clear that up right away:
+
+- **Dependency Injection** is a _technique_ — you pass the dependency in from outside rather than creating it internally
+- **Dependency Inversion** is a _principle_ — both layers point toward a shared abstraction
+
+You can have injection without inversion. You can theoretically have inversion without injection. They're different ideas. Don't mix them up.
+
+Here's the problem DIP solves. Your `OrderService` creates a `MySQLRepository` directly:
+
+```javascript
+// ❌ High-level service hardcoded to low-level detail
+class OrderService {
+  constructor() {
+    this.db = new MySQLRepository() // knows MySQL by name
+  }
+  getOrder(id) {
+    return this.db.findById(id) // calling MySQL-specific methods
+  }
+}
+```
+
+`OrderService` now _knows_ it's talking to MySQL. If you switch to Postgres, you rewrite `OrderService`. If five other services do the same thing, you rewrite all five. One low-level change ripples through your entire system. That ripple effect can sink a project.
+
+DIP flips the arrows. Instead of `OrderService` depending _down_ on MySQL, both depend _inward_ on an abstraction — a shared `Repository` interface.
+
+```javascript
+// ✅ Both layers depend on the abstraction — the arrows are reversed
+class Repository {
+  findById(id) {
+    throw new Error("implement findById")
+  }
+  save(entity) {
+    throw new Error("implement save")
+  }
+}
+
+class MySQLRepository extends Repository {
+  findById(id) {
+    /* MySQL specific */
+  }
+  save(entity) {
+    /* MySQL specific */
+  }
+}
+
+class PostgresRepository extends Repository {
+  findById(id) {
+    /* Postgres specific */
+  }
+  save(entity) {
+    /* Postgres specific */
+  }
+}
+
+class OrderService {
+  constructor(repository) {
+    // passed in from outside (injection)
+    this.db = repository // only knows about the interface (inversion)
+  }
+  getOrder(id) {
+    return this.db.findById(id)
+  }
+}
+
+// Switching databases = one line change, nowhere near OrderService
+const service = new OrderService(new PostgresRepository())
+```
+
+Notice what happened to the dependency arrows. Before: `OrderService → MySQL`. After: `OrderService → Repository ← MySQL`. Both point toward the abstraction. High-level policy no longer depends on low-level detail. That's the inversion.
+
+And because `OrderService` only knows about the interface, your tests can pass in a mock repository with fake data and the service will never know the difference. That's the bonus: code that follows DIP is almost always easier to test.
+
+---
+
+## Putting It All Together
+
+Here's the honest one-liner for each principle — the thing I wish someone had told me before I spent time memorizing formal definitions:
+
+| Principle | The Real Point                                                               |
+| --------- | ---------------------------------------------------------------------------- |
+| **SRP**   | One stakeholder per class. Stop building things everyone is afraid to touch. |
+| **OCP**   | Add new behavior with new code, not by editing old code.                     |
+| **LSP**   | Subclasses shouldn't silently break what their parent promised.              |
+| **ISP**   | Don't make classes implement promises they can't keep.                       |
+| **DIP**   | High-level logic shouldn't know or care about low-level details.             |
+
+Together, they move you from "every feature request is terrifying surgery" to "I know exactly where to make this change and nothing else will break."
+
+That's the goal. Not the acronym. Not the textbook definition. Just code that you — and everyone who comes after you — can actually work with safely.
+
+---
+
+## The One Question to Ask Before Every Change
+
+Next time you're about to edit a working class, pause for five seconds and ask yourself:
+
+> _Am I performing surgery on something that should never have been this large — or am I safely extending a system that was designed to grow?_
+
+If it's surgery — that's your signal. Not to refactor everything right now (that's its own rabbit hole), but to make it slightly better than you found it. Extract a function. Split a responsibility. Add a comment explaining the why. Leave it cleaner than you found it.
+
+That's how good codebases stay good. And it's how bad ones slowly, quietly get better.
+
+---
+
+_If LSP finally clicked for you today — you're not alone, that Square/Rectangle thing breaks everyone's brain the first time._
