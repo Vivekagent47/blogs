@@ -20,6 +20,7 @@ export type CommentStatus = "visible" | "hidden" | "deleted"
 export type CommentReportReason = (typeof COMMENT_REPORT_REASONS)[number]
 export type CommentNoticeKey =
   | "magic-link-sent"
+  | "magic-link-rate-limited"
   | "signed-in"
   | "signed-out"
   | "auth-failed"

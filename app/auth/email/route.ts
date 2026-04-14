@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
         nextPath,
         status: error.status,
       })
+
+      if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+        return redirectWithNotice(request, nextPath, "magic-link-rate-limited")
+      }
+
       throw new CommentsApiError(400, error.message, "magic_link_failed")
     }
 
