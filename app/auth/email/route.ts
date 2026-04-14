@@ -8,16 +8,18 @@ function redirectWithNotice(request: NextRequest, nextPath: string, notice: stri
   const redirectUrl = request.nextUrl.clone()
   redirectUrl.pathname = nextPath
   redirectUrl.searchParams.set("comments_notice", notice)
-  return NextResponse.redirect(redirectUrl)
+  return NextResponse.redirect(redirectUrl, { status: 303 })
 }
 
 export async function POST(request: NextRequest) {
+  let nextPath = "/"
+
   try {
     assertSameOrigin(request)
 
     const formData = await request.formData()
     const email = typeof formData.get("email") === "string" ? String(formData.get("email")).trim() : ""
-    const nextPath = sanitizeNextPath(
+    nextPath = sanitizeNextPath(
       typeof formData.get("next") === "string" ? String(formData.get("next")) : null,
       "/",
     )
@@ -47,11 +49,10 @@ export async function POST(request: NextRequest) {
     return redirectWithNotice(request, nextPath, "magic-link-sent")
   } catch (error) {
     if (error instanceof CommentsApiError) {
-      const nextPath = sanitizeNextPath(request.nextUrl.searchParams.get("next"), "/")
       return redirectWithNotice(request, nextPath, "auth-failed")
     }
 
     console.error(error)
-    return redirectWithNotice(request, "/", "auth-failed")
+    return redirectWithNotice(request, nextPath, "auth-failed")
   }
 }

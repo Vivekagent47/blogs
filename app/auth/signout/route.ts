@@ -25,5 +25,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(redirectUrl)
+  return NextResponse.redirect(redirectUrl, { status: 303 })
 }
