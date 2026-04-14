@@ -1,10 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server"
 
-import { CommentsApiError, assertSameOrigin, sanitizeNextPath } from "@/lib/comments/security"
+import {
+  CommentsApiError,
+  assertSameOrigin,
+  sanitizeNextPath,
+} from "@/lib/comments/security"
 import { getCommentsRedirectBaseUrl } from "@/lib/supabase/env"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-function redirectWithNotice(request: NextRequest, nextPath: string, notice: string) {
+function redirectWithNotice(
+  request: NextRequest,
+  nextPath: string,
+  notice: string
+) {
   const redirectUrl = request.nextUrl.clone()
   redirectUrl.pathname = nextPath
   redirectUrl.searchParams.set("comments_notice", notice)
@@ -18,10 +26,15 @@ export async function POST(request: NextRequest) {
     assertSameOrigin(request)
 
     const formData = await request.formData()
-    const email = typeof formData.get("email") === "string" ? String(formData.get("email")).trim() : ""
+    const email =
+      typeof formData.get("email") === "string"
+        ? String(formData.get("email")).trim()
+        : ""
     nextPath = sanitizeNextPath(
-      typeof formData.get("next") === "string" ? String(formData.get("next")) : null,
-      "/",
+      typeof formData.get("next") === "string"
+        ? String(formData.get("next"))
+        : null,
+      "/"
     )
 
     if (!email) {
@@ -43,12 +56,25 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
+      console.error("Supabase signInWithOtp failed", {
+        code: error.code,
+        email,
+        message: error.message,
+        nextPath,
+        status: error.status,
+      })
       throw new CommentsApiError(400, error.message, "magic_link_failed")
     }
 
     return redirectWithNotice(request, nextPath, "magic-link-sent")
   } catch (error) {
     if (error instanceof CommentsApiError) {
+      console.error("Comment auth email route failed", {
+        code: error.code,
+        message: error.message,
+        nextPath,
+        status: error.status,
+      })
       return redirectWithNotice(request, nextPath, "auth-failed")
     }
 

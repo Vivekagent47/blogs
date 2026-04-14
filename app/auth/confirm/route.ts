@@ -22,7 +22,11 @@ function resolveRedirectPath(request: NextRequest) {
   }
 }
 
-function redirectWithNotice(request: NextRequest, nextPath: string, notice: string) {
+function redirectWithNotice(
+  request: NextRequest,
+  nextPath: string,
+  notice: string
+) {
   const url = request.nextUrl.clone()
   url.pathname = nextPath
   url.searchParams.set("comments_notice", notice)
@@ -33,11 +37,24 @@ function redirectWithNotice(request: NextRequest, nextPath: string, notice: stri
 }
 
 export async function GET(request: NextRequest) {
-  const tokenHash = request.nextUrl.searchParams.get("token_hash")
-  const type = request.nextUrl.searchParams.get("type") as EmailOtpType | null
+  const tokenHash =
+    request.nextUrl.searchParams.get("token_hash") ??
+    request.nextUrl.searchParams.get("token")
+  const rawType = request.nextUrl.searchParams.get("type")
+  const type = (
+    rawType === "magiclink" ? "email" : rawType
+  ) as EmailOtpType | null
   const nextPath = resolveRedirectPath(request)
 
   if (!tokenHash || !type) {
+    console.error("Supabase verifyOtp request missing params", {
+      hasCode: Boolean(request.nextUrl.searchParams.get("code")),
+      hasRedirectTo: Boolean(request.nextUrl.searchParams.get("redirect_to")),
+      hasToken: Boolean(request.nextUrl.searchParams.get("token")),
+      hasTokenHash: Boolean(request.nextUrl.searchParams.get("token_hash")),
+      nextPath,
+      rawType,
+    })
     return redirectWithNotice(request, nextPath, "auth-failed")
   }
 
@@ -52,6 +69,16 @@ export async function GET(request: NextRequest) {
   })
 
   if (error) {
+    console.error("Supabase verifyOtp failed", {
+      code: error.code,
+      hasRedirectTo: Boolean(request.nextUrl.searchParams.get("redirect_to")),
+      hasTokenHash: Boolean(tokenHash),
+      message: error.message,
+      nextPath,
+      rawType,
+      status: error.status,
+      type,
+    })
     return redirectWithNotice(request, nextPath, "auth-failed")
   }
 
