@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { ArticleHeader } from "@/components/post/article-header"
+import { CommentsSection } from "@/components/comments/comments-section"
 import { PrevNextLinks } from "@/components/post/prev-next-links"
 import { Prose } from "@/components/prose/prose"
 import { getAdjacentEntries, getCollectionSlugs, getEntryBySlug } from "@/lib/content"
@@ -48,24 +49,30 @@ export async function generateMetadata({
 
 export default async function BlogEntryPage({
   params,
+  searchParams,
 }: {
   params: Promise<Params>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { slug } = await params
+  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
   const entry = getEntryBySlug("blog", slug)
 
   if (!entry) {
     notFound()
   }
 
-  const content = await renderMdx(entry.body)
-  const { previous, next } = getAdjacentEntries("blog", slug)
+  const [content, { previous, next }] = await Promise.all([
+    renderMdx(entry.body),
+    Promise.resolve(getAdjacentEntries("blog", slug)),
+  ])
 
   return (
     <div className="space-y-10">
       <ArticleHeader entry={entry} />
 
       <Prose>{content}</Prose>
+
+      <CommentsSection entry={entry} notice={resolvedSearchParams.comments_notice} />
 
       <PrevNextLinks previous={previous} next={next} />
     </div>

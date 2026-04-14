@@ -19,6 +19,7 @@ export type ContentFrontmatter = {
   tags: string[]
   draft: boolean
   coverImage?: string
+  comments?: boolean
 }
 
 export type ContentEntry = ContentFrontmatter & {
@@ -107,6 +108,18 @@ function normalizeCoverImage(rawValue: unknown): string | undefined {
   return value.length > 0 ? value : undefined
 }
 
+function normalizeComments(rawValue: unknown, filePath: string): boolean | undefined {
+  if (rawValue === undefined) {
+    return undefined
+  }
+
+  if (typeof rawValue !== "boolean") {
+    throw new Error(`Invalid comments flag in ${filePath}. Expected a boolean.`)
+  }
+
+  return rawValue
+}
+
 function parseFrontmatter(rawValue: unknown, filePath: string): ContentFrontmatter {
   if (!isObjectRecord(rawValue)) {
     throw new Error(`Invalid frontmatter in ${filePath}.`)
@@ -135,6 +148,7 @@ function parseFrontmatter(rawValue: unknown, filePath: string): ContentFrontmatt
     tags: normalizeTags(rawValue.tags, filePath),
     draft: rawValue.draft === true,
     coverImage: normalizeCoverImage(rawValue.coverImage),
+    comments: normalizeComments(rawValue.comments, filePath),
   }
 }
 
@@ -326,4 +340,8 @@ export function getCollectionStats(options?: ContentListOptions) {
 
 export function formatDate(rawDate: string) {
   return utcDateFormatter.format(new Date(`${rawDate}T00:00:00.000Z`))
+}
+
+export function isCommentsEnabled(entry: Pick<ContentEntry, "comments">) {
+  return entry.comments !== false
 }
