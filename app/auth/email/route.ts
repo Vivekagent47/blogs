@@ -47,16 +47,6 @@ export async function POST(request: NextRequest) {
     }
 
     const redirectBaseUrl = getCommentsRedirectBaseUrl(request.nextUrl.origin)
-    if (
-      redirectBaseUrl === "http://localhost:3000" &&
-      request.nextUrl.hostname !== "localhost"
-    ) {
-      console.warn("Comment auth email redirect fell back to localhost", {
-        hostname: request.nextUrl.hostname,
-        nextPath,
-      })
-    }
-
     const redirectTarget = new URL(nextPath, redirectBaseUrl)
 
     const { error } = await supabase.auth.signInWithOtp({

@@ -7,24 +7,11 @@ export const siteConfig = {
   author: "Vivek Chauhan",
   locale: "en_US",
   ogImage: "/og-default.svg",
-}
-
-function normalizeBaseUrl(rawValue: string) {
-  if (rawValue.startsWith("http://") || rawValue.startsWith("https://")) {
-    return rawValue
-  }
-
-  return `https://${rawValue}`
+  url: "https://blog.vivekchauhan.xyz",
 }
 
 export function getSiteOrigin() {
-  const fallback = "http://localhost:3000"
-  const rawValue =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.SITE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : fallback)
-
-  return new URL(normalizeBaseUrl(rawValue)).toString()
+  return new URL(siteConfig.url).toString()
 }
 
 export function absoluteUrl(pathname = "/") {

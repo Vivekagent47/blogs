@@ -1,5 +1,7 @@
 import "dotenv/config"
 
+const productionSiteUrl = "https://blog.vivekchauhan.xyz"
+
 function readEnv(name: string) {
   const value = process.env[name]?.trim()
   return value && value.length > 0 ? value : null
@@ -14,20 +16,9 @@ function normalizeBaseUrl(rawValue: string) {
   return new URL(value).origin
 }
 
-function resolveBaseUrl(...candidates: Array<string | null | undefined>) {
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue
-    }
-
-    try {
-      return normalizeBaseUrl(candidate)
-    } catch {
-      continue
-    }
-  }
-
-  return null
+function isLocalOrigin(rawValue: string) {
+  const { hostname } = new URL(normalizeBaseUrl(rawValue))
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0"
 }
 
 export function getSupabaseProjectEnv() {
@@ -57,17 +48,18 @@ export function getSupabaseAdminEnv() {
 }
 
 export function getCommentsRedirectBaseUrl(requestOrigin?: string | null) {
-  return (
-    resolveBaseUrl(
-      readEnv("COMMENTS_AUTH_REDIRECT_URL"),
-      requestOrigin,
-      readEnv("NEXT_PUBLIC_SITE_URL"),
-      readEnv("SITE_URL"),
-      readEnv("VERCEL_PROJECT_PRODUCTION_URL"),
-      readEnv("VERCEL_BRANCH_URL"),
-      readEnv("VERCEL_URL")
-    ) ?? "http://localhost:3000"
-  )
+  if (requestOrigin) {
+    try {
+      const normalizedRequestOrigin = normalizeBaseUrl(requestOrigin)
+      if (isLocalOrigin(normalizedRequestOrigin)) {
+        return normalizedRequestOrigin
+      }
+    } catch {
+      // Ignore invalid request origins and fall through to the production URL.
+    }
+  }
+
+  return productionSiteUrl
 }
 
 export function isCommentsBackendConfigured() {
