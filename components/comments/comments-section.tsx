@@ -1,55 +1,110 @@
-import type { ContentEntry } from "@/lib/content"
-import { isCommentsEnabled } from "@/lib/content"
+"use client"
+
+import {
+  useEffect,
+  useState,
+} from "react"
+import { useSearchParams } from "next/navigation"
+
 import { getCommentNoticeMessage } from "@/lib/comments/notices"
-import { getCommentsSectionData } from "@/lib/comments/server"
+import type { CommentsSectionData } from "@/lib/comments/types"
 
 import { CommentsClient } from "./comments-client"
+import {
+  CommentsSectionFallback,
+  CommentsSectionUnavailable,
+} from "./comments-section-fallback"
 
-export async function CommentsSection({
-  entry,
-  notice,
+async function fetchCommentsSectionData(postSlug: string) {
+  const response = await fetch(`/api/comments?postSlug=${encodeURIComponent(postSlug)}`, {
+    cache: "no-store",
+    credentials: "same-origin",
+  })
+
+  if (!response.ok) {
+    throw new Error("Unable to load comments.")
+  }
+
+  return (await response.json()) as CommentsSectionData
+}
+
+export function CommentsSection({
+  commentsEnabled,
+  currentPath,
+  postSlug,
 }: {
-  entry: ContentEntry
-  notice?: string | string[]
+  commentsEnabled: boolean
+  currentPath: string
+  postSlug: string
 }) {
-  if (!isCommentsEnabled(entry)) {
+  const searchParams = useSearchParams()
+  const [data, setData] = useState<CommentsSectionData | null>(null)
+  const [hasError, setHasError] = useState(false)
+  const noticeMessage = getCommentNoticeMessage(searchParams.get("comments_notice") ?? undefined)
+
+  async function refreshData() {
+    try {
+      const nextData = await fetchCommentsSectionData(postSlug)
+      setData(nextData)
+      setHasError(false)
+    } catch (error) {
+      console.error(error)
+      if (!data) {
+        setHasError(true)
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!commentsEnabled) {
+      return
+    }
+
+    let cancelled = false
+
+    async function loadInitialData() {
+      try {
+        const nextData = await fetchCommentsSectionData(postSlug)
+        if (cancelled) {
+          return
+        }
+
+        setData(nextData)
+        setHasError(false)
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        console.error(error)
+        setHasError(true)
+      }
+    }
+
+    void loadInitialData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [commentsEnabled, postSlug])
+
+  if (!commentsEnabled) {
     return null
   }
 
-  const noticeMessage = getCommentNoticeMessage(notice)
-  let data: Awaited<ReturnType<typeof getCommentsSectionData>> | null = null
-
-  try {
-    data = await getCommentsSectionData(entry.slug)
-  } catch (error) {
-    console.error(error)
-  }
-
   if (!data) {
-    return (
-      <section id="comments" className="comments-stage scroll-m-24 space-y-4 rounded-[2.5rem] border border-primary/10 p-6 sm:p-8">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">
-            Discussion
-          </p>
-          <h2 className="text-3xl font-semibold tracking-tight">Comments temporarily unavailable</h2>
-          <p className="text-sm leading-7 text-muted-foreground">
-            The article is fine, but the comments backend is not ready yet. Check the server logs and
-            Supabase setup if this should already be online.
-          </p>
-        </div>
-      </section>
-    )
+    return hasError ? <CommentsSectionUnavailable /> : <CommentsSectionFallback />
   }
 
   return (
     <section id="comments" className="space-y-6 scroll-m-24">
       <CommentsClient
         comments={data.comments}
-        currentPath={entry.url}
+        currentPath={currentPath}
         isConfigured={data.isConfigured}
         noticeMessage={noticeMessage}
-        postSlug={entry.slug}
+        onRefresh={refreshData}
+        postSlug={postSlug}
         totalVisibleComments={data.totalVisibleComments}
         viewer={data.viewer}
       />

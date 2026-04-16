@@ -1,11 +1,16 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { ArticleHeader } from "@/components/post/article-header"
 import { CommentsSection } from "@/components/comments/comments-section"
+import { ArticleHeader } from "@/components/post/article-header"
 import { PrevNextLinks } from "@/components/post/prev-next-links"
 import { Prose } from "@/components/prose/prose"
-import { getAdjacentEntries, getCollectionSlugs, getEntryBySlug } from "@/lib/content"
+import {
+  getAdjacentEntries,
+  getCollectionSlugs,
+  getEntryBySlug,
+  isCommentsEnabled,
+} from "@/lib/content"
 import { renderMdx } from "@/lib/mdx"
 import { buildPageMetadata, buildPostMetadata } from "@/lib/seo"
 
@@ -49,12 +54,10 @@ export async function generateMetadata({
 
 export default async function BlogEntryPage({
   params,
-  searchParams,
 }: {
   params: Promise<Params>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const [{ slug }, resolvedSearchParams] = await Promise.all([params, searchParams])
+  const { slug } = await params
   const entry = getEntryBySlug("blog", slug)
 
   if (!entry) {
@@ -72,7 +75,11 @@ export default async function BlogEntryPage({
 
       <Prose>{content}</Prose>
 
-      <CommentsSection entry={entry} notice={resolvedSearchParams.comments_notice} />
+      <CommentsSection
+        commentsEnabled={isCommentsEnabled(entry)}
+        currentPath={entry.url}
+        postSlug={entry.slug}
+      />
 
       <PrevNextLinks previous={previous} next={next} />
     </div>

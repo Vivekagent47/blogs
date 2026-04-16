@@ -21,6 +21,7 @@ export function PostCard({
   return (
     <Link
       href={href}
+      prefetch
       className="group block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2"
     >
       <article

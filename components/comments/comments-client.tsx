@@ -36,6 +36,7 @@ type CommentsClientProps = {
   currentPath: string
   isConfigured: boolean
   noticeMessage: string | null
+  onRefresh?: () => Promise<void> | void
   postSlug: string
   totalVisibleComments: number
   viewer: CommentViewer
@@ -579,6 +580,7 @@ export function CommentsClient({
   currentPath,
   isConfigured,
   noticeMessage,
+  onRefresh,
   postSlug,
   totalVisibleComments,
   viewer,
@@ -602,6 +604,11 @@ export function CommentsClient({
   async function refreshAfter(message: string) {
     setFlash({ kind: "success", text: message })
     startRefresh(() => {
+      if (onRefresh) {
+        void onRefresh()
+        return
+      }
+
       router.refresh()
     })
   }
