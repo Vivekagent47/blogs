@@ -1,0 +1,452 @@
+---
+title: "How a Missing Index on a 20 Billion Row Table Ruined My Saturday"
+description: "A real story about how a missing database index on a 20 billion row event tracking table crashed production, brought in the CTO on a Saturday, and what I learned about indexes, composite indexes, and why CREATE INDEX at the wrong moment can make everything worse."
+date: "2026-04-16"
+tags:
+  [
+    "PostgreSQL",
+    "Database",
+    "Performance",
+    "Indexes",
+    "Composite Indexes",
+    "Real Story",
+    "Backend Engineering",
+  ]
+keywords:
+  [
+    "database index real story",
+    "postgresql index performance",
+    "composite index explained",
+    "slow query production crash",
+    "create index concurrently postgresql",
+    "database performance tuning",
+  ]
+readTime: "10 min read"
+---
+
+# How a Missing Index on a 20 Billion Row Table Ruined My Saturday
+
+_A real story from a previous job: user tracking, Shopify events, 20 billion rows, 100% CPU, and my CTO calling while I was at a party._
+
+---
+
+I want to tell you something that happened to me at a previous company, because I think about it every time I'm designing a new table or reviewing someone else's query.
+
+We were building a user behaviour tracking platform. Think of it like a self-hosted analytics layer. Clients would plug it into their Shopify stores, WooCommerce setups, and other e-commerce apps, and we'd track user events, build behavioural profiles, and help them optimise their marketing strategy. Add to cart, page views, checkout starts, abandonment, all of it.
+
+The data volume was enormous. Our main event table had around **20 billion rows**. Our users table had about **200,000 unique users**. And we had an add-to-cart table that sat in between, acting as a bridge during transformations.
+
+Everything worked fine in testing. Of course it did. Test environments always lie to you.
+
+Then we pushed to production. And my Saturday fell apart.
+
+---
+
+## The Setup: A Transformation That Seemed Fine
+
+Here's what the system was doing. Every time an event came in, a user clicking something, adding a product, visiting a page, we needed to run a transformation on that raw event data before storing it in a processed form. That transformation needed to join against two other tables: the **users table** to pull user attributes and segment data, and the **add-to-cart table** to correlate cart behaviour with the incoming event.
+
+The query looked roughly like this:
+
+```sql
+SELECT
+  e.event_id,
+  e.event_type,
+  e.event_timestamp,
+  u.user_segment,
+  u.acquisition_source,
+  atc.cart_value,
+  atc.product_ids
+FROM events e
+JOIN users u ON e.user_id = u.user_id
+JOIN add_to_cart atc ON e.session_id = atc.session_id
+WHERE e.event_timestamp >= NOW() - INTERVAL '1 hour'
+  AND e.event_type IN ('add_to_cart', 'checkout_start', 'purchase');
+```
+
+On a test environment with a few thousand rows: fast. Clean. No issues. A junior developer on the team wrote it, it passed review, it looked fine. We shipped it.
+
+What nobody checked was whether there were indexes on `e.user_id`, `e.session_id`, or `e.event_type` on the events table. On a table with 20 billion rows.
+
+There weren't.
+
+---
+
+## The Saturday Phone Call
+
+It was a Saturday. I was in proper party mode, not thinking about databases, not thinking about work, thinking about absolutely nothing related to event tracking pipelines.
+
+My phone buzzed. Then buzzed again. Then rang.
+
+My CTO. Then my manager. Both at the same time.
+
+I picked up. The call was not a social one.
+
+_"The database is at 100% CPU. Everything is timing out. A client logged in to pull their analytics report and the app just hung. We need you on this now."_
+
+I left the party, opened my laptop, and pulled up the monitoring dashboard. The CPU graph looked like a cliff edge: flat, flat, flat, then straight up to 100% and stuck there. Every query in the system was slow. Not just the transformation query, everything, because the database was so overwhelmed that even simple lookups were queuing up behind the monster queries hammering the event table.
+
+And here's the part that made it worse: someone on the team, trying to help, had already identified that it was probably an index issue. So they did the logical thing.
+
+They ran `CREATE INDEX` on the events table.
+
+On a 20 billion row table. In production. During an active crisis.
+
+---
+
+## Why Creating an Index Made Everything Worse
+
+This is the thing I want every developer to understand, because it's completely counterintuitive.
+
+When you run `CREATE INDEX` on a large table, PostgreSQL has to read every single row in that table to build the index. On 20 billion rows, that process takes a long time, potentially hours. And by default, `CREATE INDEX` holds a lock on the table that blocks writes while it runs.
+
+So we now had:
+
+- The original transformation query hammering the CPU with full sequential scans
+- A new `CREATE INDEX` command consuming additional I/O and CPU to build the index
+- That index build holding a partial lock that was backing up write queries
+- The database CPU sitting at 100% with a queue of queries piling up behind everything
+
+It was like trying to fix a traffic jam by adding roadworks in the middle of it.
+
+The first thing we did was cancel the index creation:
+
+```sql
+-- Find the index creation process
+SELECT pid, query, state, wait_event_type, wait_event
+FROM pg_stat_activity
+WHERE query LIKE '%CREATE INDEX%';
+
+-- Cancel it
+SELECT pg_cancel_backend(pid);
+```
+
+Cancelling the index build immediately freed up resources. CPU dropped from 100% to around 60%. Still bad, but at least the database stopped actively fighting itself.
+
+---
+
+## Understanding What Was Actually Happening
+
+Once we could think clearly, I ran `EXPLAIN ANALYZE` on the transformation query. This command is your best friend in a crisis. It shows you exactly what PostgreSQL is doing with a query, step by step, and how long each step takes.
+
+```sql
+EXPLAIN ANALYZE
+SELECT
+  e.event_id,
+  e.event_type,
+  e.event_timestamp,
+  u.user_segment,
+  u.acquisition_source,
+  atc.cart_value,
+  atc.product_ids
+FROM events e
+JOIN users u ON e.user_id = u.user_id
+JOIN add_to_cart atc ON e.session_id = atc.session_id
+WHERE e.event_timestamp >= NOW() - INTERVAL '1 hour'
+  AND e.event_type IN ('add_to_cart', 'checkout_start', 'purchase');
+```
+
+The output was brutal:
+
+```text
+Seq Scan on events  (cost=0.00..48239410.00 rows=20000000000)
+  Filter: (event_timestamp >= (now() - '01:00:00'::interval)
+           AND event_type IN ('add_to_cart', 'checkout_start', 'purchase'))
+  Rows Removed by Filter: 19987432011
+  Execution Time: 847293.22 ms
+
+Hash Join on users
+  Hash Cond: (e.user_id = u.user_id)
+  ...
+
+Hash Join on add_to_cart
+  Hash Cond: (e.session_id = atc.session_id)
+  ...
+```
+
+`Seq Scan on events`: sequential scan across 20 billion rows. PostgreSQL was reading every single event ever recorded, then filtering down to just the last hour's worth. Nearly 20 billion rows thrown away after being read.
+
+`Execution Time: 847293.22 ms`. That's **14 minutes** for a single query. And this query was running continuously, triggered by every incoming event. The system was queuing up dozens of them simultaneously.
+
+---
+
+## The Real Fix: Rewrite First, Then Index Right
+
+Here's what we actually did, in order. The order matters.
+
+**Step 1: Kill the runaway queries immediately**
+
+```sql
+-- Find the long-running queries
+SELECT pid, now() - query_start AS duration, query
+FROM pg_stat_activity
+WHERE state = 'active'
+ORDER BY duration DESC;
+
+-- Terminate them
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE state = 'active'
+  AND now() - query_start > interval '5 minutes';
+```
+
+This immediately reduced CPU load. The database could breathe again.
+
+**Step 2: Rewrite the query**
+
+The query itself had a structural problem beyond just the missing index. It was pulling way more data than it needed, joining too broadly, and not filtering early enough. We rewrote it to filter aggressively before joining:
+
+```sql
+-- Rewritten: filter events first, then join
+WITH recent_events AS (
+  SELECT event_id, event_type, event_timestamp, user_id, session_id
+  FROM events
+  WHERE event_timestamp >= NOW() - INTERVAL '1 hour'
+    AND event_type IN ('add_to_cart', 'checkout_start', 'purchase')
+)
+SELECT
+  re.event_id,
+  re.event_type,
+  re.event_timestamp,
+  u.user_segment,
+  u.acquisition_source,
+  atc.cart_value,
+  atc.product_ids
+FROM recent_events re
+JOIN users u ON re.user_id = u.user_id
+LEFT JOIN add_to_cart atc ON re.session_id = atc.session_id;
+```
+
+This tells PostgreSQL to narrow down the events table first, then join against the smaller result set, instead of joining 20 billion rows against 200,000 users and then filtering.
+
+**Step 3: Add indexes properly, using `CONCURRENTLY`**
+
+This is the thing nobody told the person who ran `CREATE INDEX` during the crisis. PostgreSQL has a flag called `CONCURRENTLY` that builds the index without locking the table for writes. It takes longer to build, but it doesn't block anything while it runs.
+
+```sql
+-- Safe way to add an index on a large production table
+-- CONCURRENTLY = no write lock, safe to run during traffic
+CREATE INDEX CONCURRENTLY idx_events_timestamp
+ON events(event_timestamp DESC);
+
+CREATE INDEX CONCURRENTLY idx_events_type_timestamp
+ON events(event_type, event_timestamp DESC);
+
+CREATE INDEX CONCURRENTLY idx_events_user_id
+ON events(user_id);
+
+CREATE INDEX CONCURRENTLY idx_events_session_id
+ON events(session_id);
+```
+
+We ran these one at a time, monitoring CPU after each one. The `CONCURRENTLY` flag meant each index built in the background without causing another crisis.
+
+**Step 4: The composite index that actually mattered most**
+
+After the immediate fire was out, we looked at the query pattern properly. The transformation query almost always filtered by `event_type` and `event_timestamp` together. Two separate indexes on those columns individually are less efficient than one composite index on both, because PostgreSQL has to do extra work to combine two separate indexes, whereas a composite index covers the combined condition directly.
+
+```sql
+-- The composite index that should have existed from day one
+CREATE INDEX CONCURRENTLY idx_events_type_timestamp_composite
+ON events(event_type, event_timestamp DESC)
+WHERE event_type IN ('add_to_cart', 'checkout_start', 'purchase');
+```
+
+Notice the `WHERE` clause at the end. That makes it a **partial index**. It only indexes the rows where `event_type` is one of the three values we actually query. On a 20 billion row table where maybe 30% of events are those types, that's the difference between indexing 20 billion rows and indexing 6 billion. Smaller index, faster to build, faster to use, less storage.
+
+After the composite index was built, `EXPLAIN ANALYZE` told a different story:
+
+```text
+Index Scan using idx_events_type_timestamp_composite on events
+  Index Cond: (event_type IN ('add_to_cart', 'checkout_start', 'purchase')
+               AND event_timestamp >= (now() - '01:00:00'::interval))
+  Execution Time: 284.17 ms
+```
+
+From 14 minutes to 284 milliseconds. On 20 billion rows.
+
+The whole crisis, the call from the CTO, the diagnosis, the query rewrite, the safe index builds, the monitoring, took about 3 hours.
+
+---
+
+## What I Actually Learned From This
+
+Beyond the technical fixes, here's what stayed with me.
+
+**Test environments are lies.** A query that runs in 40ms on 10,000 rows will not run in 40ms on 20 billion rows. It will run in 14 minutes. The only way to catch this before production is to load test with realistic data volumes, or to think carefully about query plans before you ship.
+
+**`EXPLAIN ANALYZE` before you ship anything touching a large table.** Run it in staging with a production-sized dataset if you can. Look for `Seq Scan` on large tables. That's your warning sign.
+
+**Never run `CREATE INDEX` without `CONCURRENTLY` on a live production table.** Just don't. It will lock writes and make your crisis worse. Always use `CONCURRENTLY`. Yes, it takes longer. That's fine.
+
+**Composite indexes are not the same as multiple single indexes.** A composite index on `(event_type, event_timestamp)` is specifically built for queries that filter on both columns together. Two separate indexes require PostgreSQL to do a bitmap merge: more work, less efficient. Know your query patterns before you design your indexes.
+
+**The left-prefix rule will bite you eventually.** A composite index on `(event_type, event_timestamp)` helps queries that filter on `event_type` first. It does not help a query that only filters on `event_timestamp`. The index is only usable from the leftmost column.
+
+```sql
+-- Uses the composite index
+WHERE event_type = 'purchase' AND event_timestamp >= NOW() - INTERVAL '1 hour'
+
+-- Uses the composite index partially (just the first column)
+WHERE event_type = 'purchase'
+
+-- Does not use the composite index: skips the first column
+WHERE event_timestamp >= NOW() - INTERVAL '1 hour'
+```
+
+**Partial indexes are underused and genuinely powerful.** If your query always filters on a specific subset of values, only index that subset. Especially on billion-row tables where the size of the index itself becomes a performance concern.
+
+**Wrapping an indexed column in a function silently kills the index.** `DATE(record_date)`, `LOWER(email)`, `EXTRACT(YEAR FROM created_at)`: all of them prevent PostgreSQL from using the index on that column. Rewrite the condition so the column stands bare on one side, or create a functional index on the transformed value itself.
+
+That last one deserves its own section because it's so easy to miss and so painful when you don't.
+
+---
+
+## The Silent Index Killer Nobody Warns You About: Function Wrapping
+
+After the crisis was resolved and we were doing a proper post-incident review, we found something else hiding in the codebase. Another query, not the one that caused the Saturday meltdown, but a related reporting query, had this in its `WHERE` clause:
+
+```sql
+-- Someone wrote this thinking it would filter by date
+WHERE DATE(record_date) = '2024-01-15'
+```
+
+Looks completely reasonable. Filter events by a specific date, strip the time component with `DATE()`, done.
+
+Except the index on `record_date` was completely ignored. The query was doing a full sequential scan on 20 billion rows, every single time it ran.
+
+Here's why. When you have an index on `record_date`, PostgreSQL has that column's values stored and sorted in the index. But `DATE(record_date)` is not `record_date`, it's the result of a function applied to `record_date`. PostgreSQL can't use the index on `record_date` to look up values of `DATE(record_date)`, because those are two different things. It has to compute `DATE(record_date)` for every single row first, and only then can it filter. Which means reading every row. Which means sequential scan.
+
+```sql
+-- Wraps the column in a function: index on record_date is ignored
+WHERE DATE(record_date) = '2024-01-15'
+
+-- Same problem: EXTRACT wraps the column, index ignored
+WHERE EXTRACT(YEAR FROM record_date) = 2024
+
+-- Same problem: any function wrapping the column breaks index usage
+WHERE UPPER(email) = 'VIVEK@EXAMPLE.COM'
+WHERE LOWER(status) = 'active'
+WHERE TO_CHAR(created_at, 'YYYY-MM') = '2024-01'
+```
+
+The fix is simple: **rewrite the condition so the indexed column stands alone on one side, with no function wrapping it.**
+
+```sql
+-- Column is bare: index on record_date is used
+WHERE record_date >= '2024-01-15'
+  AND record_date < '2024-01-16'
+
+-- For year filtering: column stays unwrapped
+WHERE record_date >= '2024-01-01'
+  AND record_date < '2025-01-01'
+
+-- For case-insensitive email: use a functional index instead
+-- First create the index on the function itself:
+CREATE INDEX idx_users_email_lower ON users(LOWER(email));
+-- Then query matches the index:
+WHERE LOWER(email) = 'vivek@example.com'
+```
+
+That last pattern, a **functional index**, is the right tool when you genuinely need to query on a transformed value. Instead of applying a function to a column in your `WHERE` clause, which breaks the index, you create an index on the function result itself. PostgreSQL pre-computes `LOWER(email)` for every row and stores that in the index. Your query then matches exactly what's in the index.
+
+```sql
+-- Real example from our codebase after the fix
+-- Before: DATE(record_date) = '2024-01-15' -> seq scan, 20 billion rows
+-- After: range condition -> index scan, milliseconds
+
+-- Old query: silent seq scan
+SELECT *
+FROM events
+WHERE DATE(record_date) = '2024-01-15'
+  AND event_type = 'purchase';
+
+-- Rewritten: index on (event_type, record_date) gets used
+SELECT *
+FROM events
+WHERE event_type = 'purchase'
+  AND record_date >= '2024-01-15'
+  AND record_date < '2024-01-16';
+```
+
+The `EXPLAIN ANALYZE` output before and after told the whole story:
+
+```text
+-- Before (function wrapping):
+Seq Scan on events
+  Filter: (date(record_date) = '2024-01-15'::date)
+  Rows Removed by Filter: 19999847231
+  Execution Time: 763241.88 ms   <- 12 minutes
+
+-- After (bare column with range):
+Index Scan using idx_events_type_date on events
+  Index Cond: (event_type = 'purchase'
+               AND record_date >= '2024-01-15'
+               AND record_date < '2024-01-16')
+  Execution Time: 143.22 ms   <- under 150ms
+```
+
+Same data. Same result. One version reads 20 billion rows. The other reads a few thousand.
+
+This is the kind of thing that hides in a codebase for months, or years, because it doesn't cause an immediate crash. It just quietly makes every query slightly slower, slightly more expensive, until the data grows large enough that "slightly slower" becomes "completely unusable."
+
+The rule is simple and worth tattooing somewhere visible: **never wrap an indexed column in a function in a `WHERE` clause. Rewrite the condition so the column stands alone, or create a functional index on the transformed value.**
+
+---
+
+## The Reference I Keep Now
+
+Before adding any index to a large table, I ask myself these questions:
+
+| Question                                     | Why it matters                                                                                                       |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| What query pattern am I optimising for?      | Index design follows query patterns, not intuition                                                                   |
+| Is this column high cardinality?             | Low cardinality columns like status values and booleans rarely benefit from indexes                                  |
+| Is this table write-heavy?                   | Every index slows down inserts and updates                                                                           |
+| Should this be a composite index?            | If queries always filter on multiple columns together, yes                                                           |
+| Can I use a partial index?                   | If queries always filter a specific subset, only index that subset                                                   |
+| Am I using `CONCURRENTLY`?                   | Always on production tables with live traffic                                                                        |
+| Is any indexed column wrapped in a function? | `DATE(col)`, `LOWER(col)`, and similar patterns silently kill the index unless you rewrite or use a functional index |
+
+And the commands I run every time:
+
+```sql
+-- Before: see what the planner is doing
+EXPLAIN ANALYZE <your query>;
+
+-- After: verify the index is actually being used
+SELECT indexname, idx_scan, idx_tup_read
+FROM pg_stat_user_indexes
+WHERE tablename = 'events'
+ORDER BY idx_scan DESC;
+
+-- Periodically: find indexes nobody is using
+SELECT indexname, idx_scan
+FROM pg_stat_user_indexes
+WHERE tablename = 'events'
+  AND idx_scan = 0;
+```
+
+That last one, finding indexes with zero scans, is how you find the indexes you're paying the write penalty for without getting any read benefit. Drop them.
+
+---
+
+## The Postmortem
+
+The official root cause we wrote up:
+
+_"Transformation query introduced without index analysis on production-scale data. Missing composite index on `event_type` and `event_timestamp` caused sequential scans across 20 billion rows under production load."_
+
+But the real lesson, the one I think about whenever I'm designing something that touches a large table:
+
+**Indexes are not something you add when production breaks. They're a decision you make when you design the query, based on what the data actually looks like at scale.**
+
+The best time to think about this was before we pushed that transformation to production. The second best time was right then, at 11pm on a Saturday, with my CTO still on the call waiting for the CPU graph to come down.
+
+It did come down. Eventually.
+
+And I've never shipped a query touching a large table without running `EXPLAIN ANALYZE` first. Not once since that day.
+
+---
+
+_If you've got a production database horror story, especially one involving a well-meaning `CREATE INDEX` that made things dramatically worse, I'd genuinely love to hear it in the comments._

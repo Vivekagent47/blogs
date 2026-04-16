@@ -3,7 +3,7 @@ import { CommentsSectionFallback } from "@/components/comments/comments-section-
 export default function BlogEntryLoading() {
   return (
     <div className="space-y-10">
-      <section className="space-y-7 rounded-3xl border border-primary/12 bg-gradient-to-br from-secondary/70 via-card to-card p-6 sm:p-8">
+      <section className="space-y-7 rounded-3xl border border-primary/12 bg-linear-to-br from-secondary/70 via-card to-card p-6 sm:p-8">
         <div className="space-y-4">
           <div className="h-3 w-24 animate-pulse rounded-full bg-primary/12" />
           <div className="space-y-3">
@@ -44,12 +44,12 @@ export default function BlogEntryLoading() {
       <CommentsSectionFallback />
 
       <nav className="grid gap-4 border-t border-primary/15 pt-8 sm:grid-cols-2">
-        <div className="space-y-3 rounded-3xl border border-primary/15 bg-gradient-to-br from-secondary/65 via-card to-card p-4">
+        <div className="space-y-3 rounded-3xl border border-primary/15 bg-linear-to-br from-secondary/65 via-card to-card p-4">
           <div className="h-3 w-24 animate-pulse rounded-full bg-primary/10" />
           <div className="h-5 w-4/5 animate-pulse rounded-full bg-primary/8" />
           <div className="h-4 w-full animate-pulse rounded-full bg-primary/8" />
         </div>
-        <div className="space-y-3 rounded-3xl border border-primary/15 bg-gradient-to-br from-secondary/65 via-card to-card p-4">
+        <div className="space-y-3 rounded-3xl border border-primary/15 bg-linear-to-br from-secondary/65 via-card to-card p-4">
           <div className="ml-auto h-3 w-24 animate-pulse rounded-full bg-primary/10" />
           <div className="ml-auto h-5 w-4/5 animate-pulse rounded-full bg-primary/8" />
           <div className="ml-auto h-4 w-full animate-pulse rounded-full bg-primary/8" />
