@@ -3,7 +3,8 @@ import type { Metadata } from "next"
 export const siteConfig = {
   name: "Vivek Chauhan",
   title: "Vivek Chauhan",
-  description: "Personal writing on software, systems, and thoughtful blog posts.",
+  description:
+    "Personal writing on software, systems, and thoughtful blog posts.",
   author: "Vivek Chauhan",
   locale: "en_US",
   ogImage: "/og-default.svg",
@@ -114,6 +115,9 @@ export function buildRootMetadata(): Metadata {
       description: siteConfig.description,
       images: [absoluteUrl(siteConfig.ogImage)],
     },
+    verification: {
+      google: "Us_NT8PDatexgjWN-3SSsdVWyVECtQZ1SI6Bk_LGNrc",
+    },
   }
 }
 
@@ -137,7 +141,9 @@ export function buildPostMetadata({
       ...metadata.openGraph,
       type: "article",
       publishedTime: new Date(`${publishedTime}T00:00:00.000Z`).toISOString(),
-      modifiedTime: new Date(`${(modifiedTime ?? publishedTime)}T00:00:00.000Z`).toISOString(),
+      modifiedTime: new Date(
+        `${modifiedTime ?? publishedTime}T00:00:00.000Z`
+      ).toISOString(),
       section,
       authors: [siteConfig.author],
       tags,
@@ -176,7 +182,9 @@ export function buildRssFeedXml(entries: RssEntry[]) {
   })
 
   const latestBuildDate =
-    feedEntries[0]?.updatedAt ?? feedEntries[0]?.date ?? new Date().toISOString().slice(0, 10)
+    feedEntries[0]?.updatedAt ??
+    feedEntries[0]?.date ??
+    new Date().toISOString().slice(0, 10)
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
